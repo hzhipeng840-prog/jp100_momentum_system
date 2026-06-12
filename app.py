@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from jp100.config import PROCESSED_DIR, PipelineConfig  # noqa: E402
 from jp100.pipeline import run_pipeline  # noqa: E402
+from jp100.storage import resolve_latest_output  # noqa: E402
 
 
 st.set_page_config(
@@ -108,12 +109,19 @@ st.markdown(
 
 
 @st.cache_data(show_spinner=False)
-def load_outputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+def load_outputs() -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    dict,
+]:
     def read_csv(name: str) -> pd.DataFrame:
-        path = PROCESSED_DIR / name
+        path = resolve_latest_output(PROCESSED_DIR, name)
         return pd.read_csv(path, dtype={"code": str}) if path.exists() else pd.DataFrame()
 
-    metadata_path = PROCESSED_DIR / "metadata.json"
+    metadata_path = resolve_latest_output(PROCESSED_DIR, "metadata.json")
     metadata = (
         json.loads(metadata_path.read_text(encoding="utf-8"))
         if metadata_path.exists()
@@ -123,6 +131,8 @@ def load_outputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
         read_csv("daily_picks.csv"),
         read_csv("top100.csv"),
         read_csv("candidate_pool.csv"),
+        read_csv("followups.csv"),
+        read_csv("backtest_summary.csv"),
         metadata,
     )
 
@@ -160,7 +170,8 @@ def render_pick_cards(picks: pd.DataFrame) -> None:
                     <div class="pick-detail">
                         終値 {yen(row.get('close'))}<br>
                         20日 {pct(row.get('return_20d'))} ／ 60日 {pct(row.get('return_60d'))}<br>
-                        出来高倍率 {float(row.get('volume_ratio_20d', 0)):.2f}倍
+                        出来高倍率 {float(row.get('volume_ratio_20d', 0)):.2f}倍<br>
+                        候補出現 {int(row.get('appearance_count', 1))}回 ／ 連続 {int(row.get('consecutive_appearances', 1))}回
                     </div>
                 </div>
                 """,
@@ -182,6 +193,9 @@ def top100_view(frame: pd.DataFrame) -> pd.DataFrame:
         "return_60d",
         "volume_ratio_20d",
         "avg_turnover_20d",
+        "appearance_count",
+        "consecutive_appearances",
+        "yahoo_rank_change",
         "ranking_sources",
     ]
     view = frame[[column for column in columns if column in frame]].copy()
@@ -224,7 +238,7 @@ if refresh:
     except Exception as exc:
         st.error(f"更新に失敗しました: {exc}")
 
-daily_picks, top100, candidates, metadata = load_outputs()
+daily_picks, top100, candidates, followups, backtest_summary, metadata = load_outputs()
 
 st.markdown(
     """
@@ -252,9 +266,13 @@ metric_columns[0].metric("基準日", metadata.get("trade_date", "―"))
 metric_columns[1].metric("ランキング候補", f"{metadata.get('candidate_count', len(candidates)):,} 銘柄")
 metric_columns[2].metric("注目リスト", f"{len(top100):,} 銘柄")
 metric_columns[3].metric("本日の厳選", f"{len(daily_picks):,} 銘柄")
+st.caption(
+    f"システム版: {metadata.get('app_version', 'v0')} ／ "
+    f"実行ID: {metadata.get('run_id', '―')}"
+)
 
-tab_daily, tab_top, tab_pool, tab_guide = st.tabs(
-    ["本日の厳選", "注目Top100", "候補銘柄", "運用ガイド"]
+tab_daily, tab_top, tab_pool, tab_history, tab_guide = st.tabs(
+    ["本日の厳選", "注目Top100", "候補銘柄", "履歴検証", "運用ガイド"]
 )
 
 with tab_daily:
@@ -317,6 +335,9 @@ with tab_top:
             "return_60d": st.column_config.NumberColumn("60日", format="%+.1f%%"),
             "volume_ratio_20d": st.column_config.NumberColumn("出来高倍率", format="%.2f"),
             "avg_turnover_20d": st.column_config.NumberColumn("平均売買代金", format="¥%.0f"),
+            "appearance_count": st.column_config.NumberColumn("候補出現", format="%d"),
+            "consecutive_appearances": st.column_config.NumberColumn("連続出現", format="%d"),
+            "yahoo_rank_change": st.column_config.NumberColumn("Yahoo順位変化", format="%+.0f"),
             "ranking_sources": "候補入り理由",
         },
     )
@@ -337,6 +358,9 @@ with tab_pool:
         "industry",
         "ranking_hits",
         "best_yahoo_rank",
+        "appearance_count",
+        "consecutive_appearances",
+        "yahoo_rank_change",
         "ranking_sources",
     ]
     st.dataframe(
@@ -351,9 +375,126 @@ with tab_pool:
             "industry": "業種",
             "ranking_hits": "該当ランキング数",
             "best_yahoo_rank": "Yahoo最高順位",
+            "appearance_count": "候補出現回数",
+            "consecutive_appearances": "連続出現",
+            "yahoo_rank_change": "順位変化",
             "ranking_sources": "ランキング",
         },
     )
+
+with tab_history:
+    st.subheader("履歴検証")
+    st.caption(
+        "本日の厳選をシグナル日終値で記録し、翌営業日寄付と1・3・5・10営業日後を追跡します。"
+    )
+    freshness = metadata.get("freshness", {})
+    status = str(freshness.get("status", "initializing"))
+    if status == "fresh":
+        st.success(str(freshness.get("summary", "データは最新です。")))
+    elif status == "partial":
+        st.warning(str(freshness.get("summary", "一部データが未確定です。")))
+    else:
+        st.info(str(freshness.get("summary", "成績追跡を開始しています。")))
+
+    if backtest_summary.empty:
+        st.info("翌営業日以降の価格が蓄積されると、ここに簡易検証結果が表示されます。")
+    else:
+        overall = backtest_summary[
+            backtest_summary["group_name"].astype(str).eq("全体")
+        ].copy()
+        overall["平均リターン"] = pd.to_numeric(
+            overall["avg_return"], errors="coerce"
+        ) * 100
+        overall["中央値"] = pd.to_numeric(
+            overall["median_return"], errors="coerce"
+        ) * 100
+        overall["勝率"] = pd.to_numeric(overall["win_rate"], errors="coerce") * 100
+        st.markdown("#### 毎日厳選の簡易集計")
+        st.dataframe(
+            overall[
+                [
+                    "metric_label",
+                    "sample_count",
+                    "valid_count",
+                    "平均リターン",
+                    "中央値",
+                    "勝率",
+                ]
+            ],
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "metric_label": "追跡区間",
+                "sample_count": "記録数",
+                "valid_count": "確定数",
+                "平均リターン": st.column_config.NumberColumn(
+                    "平均", format="%+.2f%%"
+                ),
+                "中央値": st.column_config.NumberColumn(
+                    "中央値", format="%+.2f%%"
+                ),
+                "勝率": st.column_config.NumberColumn("勝率", format="%.1f%%"),
+            },
+        )
+
+    if not followups.empty:
+        latest_followups = followups.sort_values(
+            ["trade_date", "pick_rank"], ascending=[False, True]
+        ).head(30)
+        columns = [
+            "trade_date",
+            "code",
+            "name",
+            "pick_rank",
+            "next_open_gap",
+            "return_1d",
+            "return_3d",
+            "return_5d",
+            "return_10d",
+            "observed_days",
+        ]
+        display_followups = latest_followups[
+            [column for column in columns if column in latest_followups]
+        ].copy()
+        for column in (
+            "next_open_gap",
+            "return_1d",
+            "return_3d",
+            "return_5d",
+            "return_10d",
+        ):
+            if column in display_followups:
+                display_followups[column] = (
+                    pd.to_numeric(display_followups[column], errors="coerce") * 100
+                )
+        st.markdown("#### 最近の追跡状況")
+        st.dataframe(
+            display_followups,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "trade_date": "シグナル日",
+                "code": "コード",
+                "name": "銘柄名",
+                "pick_rank": "厳選順位",
+                "next_open_gap": st.column_config.NumberColumn(
+                    "翌日寄付", format="%+.2f%%"
+                ),
+                "return_1d": st.column_config.NumberColumn(
+                    "1日", format="%+.2f%%"
+                ),
+                "return_3d": st.column_config.NumberColumn(
+                    "3日", format="%+.2f%%"
+                ),
+                "return_5d": st.column_config.NumberColumn(
+                    "5日", format="%+.2f%%"
+                ),
+                "return_10d": st.column_config.NumberColumn(
+                    "10日", format="%+.2f%%"
+                ),
+                "observed_days": "観測営業日",
+            },
+        )
 
 with tab_guide:
     st.subheader("評価方法")
@@ -364,6 +505,7 @@ with tab_guide:
         3. **価格評価**: yfinanceの日足から20日・60日・120日モメンタムを計算
         4. **品質調整**: 移動平均、平均売買代金、出来高倍率、120日高値との距離、20日変動率
         5. **毎日厳選**: 最低株価・流動性・過熱度・業種分散を追加判定
+        6. **履歴検証**: シグナル日終値を記録し、翌営業日寄付と1・3・5・10営業日後を追跡
         """
     )
     st.markdown(

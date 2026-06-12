@@ -5,7 +5,13 @@ __pycache__/
 venv/
 .streamlit/secrets.toml
 .cache/
+.test-tmp/
 data/raw/*
 data/processed/*
+data/history/*
+data/snapshots/*
+data/.staging/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/history/.gitkeep
+!data/snapshots/.gitkeep

@@ -47,7 +47,29 @@ class MarketFeatureTest(unittest.TestCase):
         self.assertGreater(result["distance_ma20"], 0)
         self.assertGreater(result["avg_turnover_20d"], 0)
 
+    def test_volume_ratio_uses_previous_twenty_days(self) -> None:
+        dates = pd.bdate_range("2025-01-01", periods=80)
+        close = pd.Series(np.linspace(1000, 1200, len(dates)), index=dates)
+        volume = np.full(len(dates), 100_000.0)
+        volume[-1] = 200_000.0
+        frame = pd.DataFrame(
+            {
+                "Open": close,
+                "High": close + 5,
+                "Low": close - 5,
+                "Close": close,
+                "Adj Close": close,
+                "Volume": volume,
+            },
+            index=dates,
+        )
+
+        result = calculate_features("7203.T", frame)
+
+        assert result is not None
+        self.assertEqual(result["avg_volume_20d"], 100_000.0)
+        self.assertEqual(result["volume_ratio_20d"], 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()
-

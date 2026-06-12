@@ -54,9 +54,11 @@ def main() -> int:
         f"毎日厳選 {len(result.daily_picks)}銘柄"
     )
     print(f"基準日: {result.metadata['trade_date']}")
+    print(f"システム版: {result.metadata['app_version']}")
+    print(f"実行ID: {result.metadata['run_id']}")
+    print(f"データ状態: {result.freshness.get('summary', '-')}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

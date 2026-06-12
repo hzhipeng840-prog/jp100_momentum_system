@@ -128,13 +128,13 @@ def calculate_features(ticker: str, frame: pd.DataFrame) -> dict[str, object] | 
         close = _series(frame, "Close")
     raw_close = _series(frame, "Close")
     volume = _series(frame, "Volume")
-    if len(close) < 65 or raw_close.empty or len(volume) < 20:
+    if len(close) < 65 or raw_close.empty or len(volume) < 21:
         return None
 
     aligned = pd.concat(
         [raw_close.rename("close"), volume.rename("volume")], axis=1
     ).dropna()
-    if len(aligned) < 20:
+    if len(aligned) < 21:
         return None
 
     daily_returns = close.pct_change(fill_method=None).dropna()
@@ -142,7 +142,8 @@ def calculate_features(ticker: str, frame: pd.DataFrame) -> dict[str, object] | 
     ma60 = float(close.tail(60).mean())
     latest = float(close.iloc[-1])
     raw_latest = float(raw_close.iloc[-1])
-    avg_volume_20d = float(aligned["volume"].tail(20).mean())
+    previous_20 = aligned.iloc[:-1].tail(20)
+    avg_volume_20d = float(previous_20["volume"].mean())
     latest_volume = float(aligned["volume"].iloc[-1])
     high_120 = float(close.tail(min(120, len(close))).max())
     volatility = (
