@@ -12,6 +12,13 @@ METRICS = [
     ("open_buy_1d", "open_buy_return_1d", "settled_1d", "翌日寄付買い1日"),
     ("open_buy_3d", "open_buy_return_3d", "settled_3d", "翌日寄付買い3日"),
     ("open_buy_5d", "open_buy_return_5d", "settled_5d", "翌日寄付買い5日"),
+    ("excess_5d", "open_buy_excess_return_5d", "settled_5d", "TOPIX超過5日"),
+    (
+        "net_5d_10bps",
+        "net_open_buy_return_5d_10bps",
+        "settled_5d",
+        "コスト後5日（片道10bp）",
+    ),
 ]
 
 

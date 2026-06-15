@@ -77,7 +77,8 @@ def publish_outputs(
         "run_id": run_id,
         "trade_date": trade_date,
         "generated_at": metadata.get("generated_at"),
-        "run_dir": str(target_dir.resolve()),
+        "run_dir": target_dir.relative_to(processed_dir.parent).as_posix(),
+        "run_dir_base": "data",
         "files": sorted([*frames.keys(), "metadata.json"]),
     }
     save_metadata(pointer, processed_dir / "latest.json")
@@ -95,6 +96,8 @@ def resolve_latest_output(processed_dir: Path, filename: str) -> Path:
         try:
             pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
             run_dir = Path(str(pointer.get("run_dir") or ""))
+            if not run_dir.is_absolute():
+                run_dir = processed_dir.parent / run_dir
             candidate = run_dir / filename
             if candidate.exists():
                 return candidate

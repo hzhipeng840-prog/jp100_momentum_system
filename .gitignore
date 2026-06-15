@@ -6,10 +6,12 @@ venv/
 .streamlit/secrets.toml
 .cache/
 .test-tmp/
+.test-deps/
 data/raw/*
 data/processed/*
 data/history/*
 data/snapshots/*
+data/user/*
 data/.staging/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep

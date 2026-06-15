@@ -42,6 +42,8 @@ class SnapshotStorageTest(unittest.TestCase):
             (processed / "latest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(saved_pointer["run_dir"], pointer["run_dir"])
+        self.assertFalse(Path(saved_pointer["run_dir"]).is_absolute())
+        self.assertEqual(saved_pointer["run_dir_base"], "data")
         saved = pd.read_csv(resolved, dtype={"code": str})
         self.assertEqual(saved.iloc[0]["code"], "7203")
 

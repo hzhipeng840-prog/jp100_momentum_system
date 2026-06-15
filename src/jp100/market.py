@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import shutil
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -13,6 +16,17 @@ from .sources import DataSourceError
 
 
 PRICE_COLUMNS = ("Open", "High", "Low", "Close", "Adj Close", "Volume")
+
+
+@dataclass(frozen=True)
+class PriceDownloadResult:
+    history: dict[str, pd.DataFrame]
+    errors: list[str]
+    stats: dict[str, int]
+
+    def __iter__(self):
+        yield self.history
+        yield self.errors
 
 
 def _chunks(values: list[str], size: int) -> Iterable[list[str]]:
@@ -67,6 +81,64 @@ def _download_batch(tickers: list[str], period: str) -> dict[str, pd.DataFrame]:
     return split_downloaded_history(downloaded, tickers)
 
 
+def _cache_filename(ticker: str) -> str:
+    safe_ticker = re.sub(r"[^0-9A-Za-z._-]+", "_", ticker).strip("._")
+    return f"{safe_ticker or 'ticker'}.csv"
+
+
+def _normalise_history_frame(frame: pd.DataFrame | None) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return pd.DataFrame()
+    result = frame.copy()
+    result.index = pd.to_datetime(result.index, errors="coerce")
+    result = result[~result.index.isna()]
+    if isinstance(result.index, pd.DatetimeIndex) and result.index.tz is not None:
+        result.index = result.index.tz_localize(None)
+    result = result[~result.index.duplicated(keep="last")].sort_index()
+    result.columns = [str(column) for column in result.columns]
+    return result.dropna(how="all")
+
+
+def _load_price_cache(cache_dir: Path, ticker: str) -> pd.DataFrame:
+    path = cache_dir / _cache_filename(ticker)
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        frame = pd.read_csv(path, index_col="Date", parse_dates=["Date"])
+    except (OSError, ValueError, KeyError, pd.errors.ParserError):
+        return pd.DataFrame()
+    return _normalise_history_frame(frame)
+
+
+def _save_price_cache(cache_dir: Path, ticker: str, frame: pd.DataFrame) -> None:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / _cache_filename(ticker)
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    payload = _normalise_history_frame(frame).rename_axis("Date")
+    try:
+        payload.to_csv(temporary, encoding="utf-8-sig")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _merge_history_frames(
+    cached: pd.DataFrame | None,
+    downloaded: pd.DataFrame | None,
+) -> pd.DataFrame:
+    frames = [
+        frame
+        for frame in (
+            _normalise_history_frame(cached),
+            _normalise_history_frame(downloaded),
+        )
+        if not frame.empty
+    ]
+    if not frames:
+        return pd.DataFrame()
+    return _normalise_history_frame(pd.concat(frames, axis=0))
+
+
 def split_downloaded_history(
     downloaded: pd.DataFrame, tickers: list[str]
 ) -> dict[str, pd.DataFrame]:
@@ -98,22 +170,94 @@ def split_downloaded_history(
 
 
 def download_price_history(
-    tickers: list[str], period: str = "1y", batch_size: int = 80
-) -> tuple[dict[str, pd.DataFrame], list[str]]:
-    history: dict[str, pd.DataFrame] = {}
+    tickers: list[str],
+    period: str = "1y",
+    batch_size: int = 80,
+    *,
+    cache_dir: Path | None = None,
+    incremental_period: str = "10d",
+) -> PriceDownloadResult:
+    unique_tickers = list(dict.fromkeys(tickers))
+    cached_history: dict[str, pd.DataFrame] = {}
+    if cache_dir is not None:
+        cached_history = {
+            ticker: frame
+            for ticker in unique_tickers
+            if not (frame := _load_price_cache(cache_dir, ticker)).empty
+        }
+
+    bootstrap_tickers = [
+        ticker
+        for ticker in unique_tickers
+        if len(cached_history.get(ticker, pd.DataFrame())) < 65
+    ]
+    incremental_tickers = [
+        ticker for ticker in unique_tickers if ticker not in bootstrap_tickers
+    ]
+    history = dict(cached_history)
     errors: list[str] = []
-    for batch in _chunks(tickers, batch_size):
-        try:
-            history.update(_download_batch(batch, period))
-        except Exception as exc:
-            errors.append(f"{batch[0]}～: {exc}")
-    return history, errors
+    downloaded_count = 0
+    for group, download_period in (
+        (bootstrap_tickers, period),
+        (incremental_tickers, incremental_period),
+    ):
+        for batch in _chunks(group, batch_size):
+            try:
+                downloaded = _download_batch(batch, download_period)
+            except Exception as exc:
+                errors.append(f"{batch[0]}ほか: {exc}")
+                continue
+            for ticker, frame in downloaded.items():
+                merged = _merge_history_frames(cached_history.get(ticker), frame)
+                if merged.empty:
+                    continue
+                history[ticker] = merged
+                downloaded_count += 1
+                if cache_dir is not None:
+                    _save_price_cache(cache_dir, ticker, merged)
+
+    stats = {
+        "requested_count": len(unique_tickers),
+        "cache_hit_count": len(cached_history),
+        "bootstrap_count": len(bootstrap_tickers),
+        "incremental_count": len(incremental_tickers),
+        "downloaded_count": downloaded_count,
+        "available_count": len(history),
+        "missing_count": len(set(unique_tickers) - set(history)),
+    }
+    return PriceDownloadResult(history=history, errors=errors, stats=stats)
 
 
 def _series(frame: pd.DataFrame, name: str) -> pd.Series:
     if name not in frame:
         return pd.Series(dtype=float)
     return pd.to_numeric(frame[name], errors="coerce").dropna()
+
+
+def adjusted_price_frame(frame: pd.DataFrame | None) -> pd.DataFrame:
+    """配当・分割調整係数をOHLCへ適用した価格系列を返す。"""
+    if frame is None or frame.empty:
+        return pd.DataFrame()
+    result = frame.copy()
+    for column in PRICE_COLUMNS:
+        if column in result:
+            result[column] = pd.to_numeric(result[column], errors="coerce")
+    close = result.get("Close", pd.Series(index=result.index, dtype=float))
+    adjusted_close = result.get(
+        "Adj Close",
+        pd.Series(index=result.index, dtype=float),
+    )
+    factor = adjusted_close.div(close.where(close.ne(0))).replace(
+        [np.inf, -np.inf],
+        np.nan,
+    )
+    factor = factor.where(factor.gt(0), 1.0).fillna(1.0)
+    for column in ("Open", "High", "Low", "Close"):
+        if column in result:
+            result[column] = result[column] * factor
+    if "Adj Close" in result:
+        result["Close"] = adjusted_close.where(adjusted_close.notna(), result["Close"])
+    return result
 
 
 def _return(close: pd.Series, days: int) -> float:

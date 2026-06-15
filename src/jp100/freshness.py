@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from .trading_calendar import previous_tse_session
+
 
 def _truthy(series: pd.Series) -> pd.Series:
     if pd.api.types.is_bool_dtype(series):
@@ -29,6 +31,7 @@ def build_freshness_report(
         "feature_count": int(feature_count),
         "feature_coverage": round(float(coverage), 4),
         "settlement_date": None,
+        "expected_settlement_date": previous_tse_session(trade_date),
         "settlement_count": 0,
         "settled_1d_count": 0,
         "settled_1d_ratio": None,
@@ -55,7 +58,17 @@ def build_freshness_report(
         report["summary"] = "初回運用のため、翌営業日以降の成績追跡を待っています。"
         return report
 
+    expected_settlement_date = str(report["expected_settlement_date"])
     settlement_date = dates[-1]
+    if expected_settlement_date not in dates:
+        report["status"] = "partial"
+        report["settlement_date"] = settlement_date
+        report["summary"] = (
+            f"前営業日{expected_settlement_date}の追跡データがありません。"
+            f" 最新の追跡日は{settlement_date}です。"
+        )
+        return report
+    settlement_date = expected_settlement_date
     rows = followups[followups["trade_date"].astype(str).eq(settlement_date)]
     settled = (
         _truthy(rows["settled_1d"])

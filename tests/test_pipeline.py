@@ -89,6 +89,7 @@ class PipelineIntegrationTest(unittest.TestCase):
             top_count=3,
             daily_count=3,
             min_feature_coverage=1.0,
+            expected_trade_date="2026-06-11",
             raw_dir=root / "raw",
             processed_dir=root / "processed",
             history_dir=root / "history",
@@ -98,7 +99,7 @@ class PipelineIntegrationTest(unittest.TestCase):
         result = run_pipeline(config)
 
         self.assertEqual(result.metadata["trade_date"], "2026-06-11")
-        self.assertEqual(result.metadata["app_version"], "v1")
+        self.assertEqual(result.metadata["app_version"], "v4")
         self.assertEqual(len(result.candidates), 3)
         self.assertEqual(len(result.top100), 3)
         self.assertEqual(len(result.daily_picks), 3)
@@ -110,8 +111,17 @@ class PipelineIntegrationTest(unittest.TestCase):
         )
         self.assertTrue((run_dir / "top100.csv").exists())
         self.assertTrue((run_dir / "followups.csv").exists())
+        self.assertTrue((run_dir / "rule_evaluation.csv").exists())
+        self.assertTrue((run_dir / "factor_quantile_evaluation.csv").exists())
+        self.assertTrue((run_dir / "jpx_liquidity_top100.csv").exists())
+        self.assertTrue((run_dir / "version_comparison.csv").exists())
+        self.assertTrue((run_dir / "portfolio_summary.csv").exists())
+        self.assertTrue((run_dir / "market_environment.csv").exists())
         self.assertTrue(
             (config.history_dir / "daily_picks_history.csv").exists()
+        )
+        self.assertTrue(
+            (config.history_dir / "evaluation_observations.csv").exists()
         )
 
 

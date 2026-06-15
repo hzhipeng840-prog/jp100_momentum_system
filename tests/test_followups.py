@@ -47,6 +47,60 @@ class FollowupTest(unittest.TestCase):
         self.assertTrue(bool(result["settled_3d"]))
         self.assertFalse(bool(result["settled_5d"]))
 
+    def test_followup_uses_adjusted_prices_benchmark_and_costs(self) -> None:
+        dates = pd.to_datetime(["2026-06-08", "2026-06-09"])
+        stock = pd.DataFrame(
+            {
+                "Open": [98, 51],
+                "High": [102, 53],
+                "Low": [97, 50],
+                "Close": [100, 52],
+                "Adj Close": [50, 52],
+                "Volume": [1000, 1200],
+            },
+            index=dates,
+        )
+        benchmark = pd.DataFrame(
+            {
+                "Open": [200, 201],
+                "High": [201, 204],
+                "Low": [199, 200],
+                "Close": [200, 202],
+                "Adj Close": [200, 202],
+                "Volume": [1000, 1000],
+            },
+            index=dates,
+        )
+        row = pd.Series(
+            {
+                "trade_date": "2026-06-08",
+                "code": "1000",
+                "ticker": "1000.T",
+                "close": 100,
+            }
+        )
+
+        result = calculate_followup(
+            row,
+            stock,
+            horizons=(1,),
+            benchmark_history=benchmark,
+            cost_scenarios_bps=(10,),
+        )
+
+        self.assertAlmostEqual(float(result["signal_adjusted_close"]), 50)
+        self.assertAlmostEqual(float(result["return_1d"]), 0.04)
+        expected_open_return = 52 / 51 - 1
+        expected_benchmark = 202 / 201 - 1
+        self.assertAlmostEqual(
+            float(result["open_buy_excess_return_1d"]),
+            expected_open_return - expected_benchmark,
+        )
+        self.assertAlmostEqual(
+            float(result["net_open_buy_return_1d_10bps"]),
+            (1 + expected_open_return) * 0.999 * 0.999 - 1,
+        )
+
     def test_existing_settled_result_does_not_regress(self) -> None:
         picks = pd.DataFrame(
             [
@@ -84,6 +138,33 @@ class FollowupTest(unittest.TestCase):
         self.assertTrue(bool(row["settled_5d"]))
         self.assertAlmostEqual(float(row["return_5d"]), 0.20)
         self.assertEqual(int(row["observed_days"]), 5)
+
+    def test_custom_key_keeps_evaluation_versions_separate(self) -> None:
+        observations = pd.DataFrame(
+            [
+                {
+                    "trade_date": "2026-06-08",
+                    "code": "7203",
+                    "ticker": "7203.T",
+                    "close": 100,
+                    "rank": 1,
+                    "evaluation_version": version,
+                    "score": score,
+                }
+                for version, score in (("v1", 60), ("v2", 70))
+            ]
+        )
+
+        result = build_followups(
+            observations,
+            {"7203.T": price_frame()},
+            horizons=(1,),
+            key_columns=("trade_date", "code", "evaluation_version"),
+            passthrough_columns=["evaluation_version", "score", "rank"],
+        )
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(set(result["evaluation_version"]), {"v1", "v2"})
 
 
 if __name__ == "__main__":

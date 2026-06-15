@@ -30,22 +30,34 @@
 ```text
 app.py                       Streamlit日本語画面。表示と操作のみを担当
 daily_job.py                 日次更新のコマンドライン入口
+cloud_job.py                 GitHub Actions向け営業日・重複判定付き入口
 src/jp100/config.py          パス、データソース、実行設定
 src/jp100/sources.py         JPX/Yahooデータの取得、解析、キャッシュ
 src/jp100/market.py          yfinance株価データ取得と特徴量計算
 src/jp100/scoring.py         Top100評価と毎日厳選
+src/jp100/rules.py           因子・ルール定義と発動状態の固定
+src/jp100/rule_evaluation.py 因子分位・IC・入替率・ルール比較
+src/jp100/trading_calendar.py 東証営業日カレンダー
 src/jp100/pipeline.py        データパイプラインの制御
 src/jp100/history.py         候補・Top100・厳選の累積履歴
 src/jp100/followups.py       翌日寄付・1/3/5/10営業日の成績追跡
 src/jp100/freshness.py       価格取得率と結算状況の鮮度判定
 src/jp100/backtest.py        厳選シグナルの簡易集計
+src/jp100/portfolio.py       コスト込み仮想ポートフォリオ
+src/jp100/universe.py        JPX流動性候補と評価版の比較
+src/jp100/market_environment.py 市場環境・相関・集中リスク
+src/jp100/watchlist.py       ローカルウォッチリスト
 src/jp100/storage.py         原子的CSV/JSON出力とスナップショット公開
 tests/                       実ネットワークに依存しない単体テスト
 data/raw/                    外部原データのキャッシュ。Gitへ登録しない
 data/processed/              生成結果。Gitへ登録しない
 data/history/                日次累積履歴。Gitへ登録しない
 data/snapshots/              実行単位の不変スナップショット。Gitへ登録しない
+data/user/                   個人ウォッチリスト。Gitへ登録しない
 scripts/verify.ps1           高速オフライン検証
+scripts/export_cloud_data.py dataブランチ公開対象の抽出
+scripts/sync_cloud_data.ps1  dataブランチからローカルへの同期
+.github/workflows/           GitHub Actionsの日次自動更新
 README.md                    利用者向け実行手順
 AGENTS.md                    開発・エージェント作業規約
 ```
@@ -125,7 +137,7 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 同等のコマンド：
 
 ```powershell
-python -m compileall -q app.py daily_job.py src tests
+python -m compileall -q app.py daily_job.py cloud_job.py src tests
 python -m unittest discover -s tests -v
 ```
 
@@ -220,6 +232,10 @@ python -m streamlit run app.py
 - 本プロジェクトの結果を投資助言、利益保証、確実な予測として表現すること。
 - ベンチマークやテストなしでの大規模リファクタリング。
 - 1件の失敗コマンドに対する無制限な再試行または長時間の無言待機。
+
+GitHub Actions自身が日次生成結果を専用の `data` ブランチへ公開する処理は、
+レビュー済みの `.github/workflows/daily_pipeline.yml` に限り上記の例外とする。
+コードを管理する `main` ブランチへ日次データを自動コミットしてはいけない。
 
 ## 12. 完了条件
 

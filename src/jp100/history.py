@@ -5,12 +5,20 @@ from pathlib import Path
 import pandas as pd
 
 from .storage import save_frame
+from .trading_calendar import are_consecutive_tse_sessions
 
 
 def load_history(path: Path, code_column: str = "code") -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
-    frame = pd.read_csv(path, encoding="utf-8-sig", dtype={code_column: str})
+    try:
+        frame = pd.read_csv(
+            path,
+            encoding="utf-8-sig",
+            dtype={code_column: str},
+        )
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
     if code_column in frame:
         frame[code_column] = frame[code_column].fillna("").astype(str)
     return frame
@@ -57,8 +65,6 @@ def add_candidate_appearance_stats(history: pd.DataFrame) -> pd.DataFrame:
     frame = frame[frame["code"].ne("")]
     frame = frame.drop_duplicates(["snapshot_date", "code"], keep="last")
 
-    dates = sorted(frame["snapshot_date"].unique().tolist())
-    date_index = {value: index for index, value in enumerate(dates)}
     rows: list[dict[str, object]] = []
     state: dict[str, dict[str, object]] = {}
     for _, row in frame.sort_values(
@@ -66,13 +72,13 @@ def add_candidate_appearance_stats(history: pd.DataFrame) -> pd.DataFrame:
     ).iterrows():
         code = str(row["code"])
         current_date = str(row["snapshot_date"])
-        current_index = date_index[current_date]
         previous = state.get(code, {})
-        previous_index = previous.get("date_index")
+        previous_date = previous.get("snapshot_date")
         appearance_count = int(previous.get("appearance_count", 0)) + 1
         consecutive = (
             int(previous.get("consecutive_appearances", 0)) + 1
-            if previous_index == current_index - 1
+            if previous_date
+            and are_consecutive_tse_sessions(previous_date, current_date)
             else 1
         )
         current_rank = pd.to_numeric(
@@ -96,7 +102,7 @@ def add_candidate_appearance_stats(history: pd.DataFrame) -> pd.DataFrame:
         )
         rows.append(record)
         state[code] = {
-            "date_index": current_index,
+            "snapshot_date": current_date,
             "appearance_count": appearance_count,
             "consecutive_appearances": consecutive,
             "best_yahoo_rank": (
