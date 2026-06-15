@@ -1,0 +1,32 @@
+{
+  "run_id": "20260615T174211548080",
+  "trade_date": "2026-06-15",
+  "generated_at": "2026-06-15T17:42:11+09:00",
+  "run_dir": "snapshots/2026-06-15/20260615T174211548080",
+  "run_dir_base": "data",
+  "files": [
+    "backtest_summary.csv",
+    "candidate_pool.csv",
+    "daily_picks.csv",
+    "evaluation_followups.csv",
+    "factor_ic.csv",
+    "factor_quantile_evaluation.csv",
+    "factor_turnover.csv",
+    "followups.csv",
+    "jpx_liquidity_top100.csv",
+    "jpx_liquidity_universe.csv",
+    "jpx_universe.csv",
+    "market_environment.csv",
+    "metadata.json",
+    "portfolio_curve.csv",
+    "portfolio_summary.csv",
+    "risk_alerts.csv",
+    "rule_evaluation.csv",
+    "top100.csv",
+    "universe_comparison.csv",
+    "universe_followups.csv",
+    "version_comparison.csv",
+    "virtual_positions.csv",
+    "yahoo_candidates.csv"
+  ]
+}

@@ -1,0 +1,11 @@
+﻿evaluation_version,factor_key,factor_label,transition_count,avg_turnover,median_turnover,latest_turnover,latest_transition_date,status
+v4,score,総合スコア,0,,,,,サンプル不足
+v4,return_20d,20日モメンタム,0,,,,,サンプル不足
+v4,return_60d,60日モメンタム,0,,,,,サンプル不足
+v4,return_120d,120日モメンタム,0,,,,,サンプル不足
+v4,distance_ma20,20日移動平均乖離,0,,,,,サンプル不足
+v4,distance_ma60,60日移動平均乖離,0,,,,,サンプル不足
+v4,avg_turnover_20d,20日平均売買代金,0,,,,,サンプル不足
+v4,volume_ratio_20d,出来高比,0,,,,,サンプル不足
+v4,distance_high_120d,120日高値接近度,0,,,,,サンプル不足
+v4,volatility_20d,20日変動率,0,,,,,サンプル不足

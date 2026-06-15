@@ -1,0 +1,86 @@
+{
+  "app_version": "v4",
+  "run_id": "20260615T174211548080",
+  "generated_at": "2026-06-15T17:42:11+09:00",
+  "trade_date": "2026-06-15",
+  "jpx": {
+    "source": "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls",
+    "cache_used": false,
+    "count": 3739
+  },
+  "yahoo": {
+    "source": "Yahoo!ファイナンス 日本株ランキング",
+    "pages": 9,
+    "cache_pages": 0,
+    "count": 408,
+    "errors": []
+  },
+  "candidate_count": 325,
+  "history_count": 1713,
+  "feature_count": 324,
+  "feature_coverage": 0.9969,
+  "top100_count": 100,
+  "daily_pick_count": 5,
+  "followup_count": 5,
+  "backtest_summary_count": 100,
+  "evaluation_observation_count": 100,
+  "rule_evaluation_count": 1488,
+  "factor_quantile_count": 2140,
+  "factor_ic_count": 960,
+  "factor_turnover_count": 10,
+  "liquidity_universe_count": 600,
+  "liquidity_top100_count": 100,
+  "universe_comparison_count": 8,
+  "portfolio_observation_count": 0,
+  "risk_alert_count": 1,
+  "download_errors": [],
+  "price_cache": {
+    "requested_count": 1715,
+    "cache_hit_count": 0,
+    "bootstrap_count": 1715,
+    "incremental_count": 0,
+    "downloaded_count": 1713,
+    "available_count": 1713,
+    "missing_count": 2
+  },
+  "skipped_tickers": [
+    "544A.T",
+    "545A.T",
+    "546A.T",
+    "556A.T"
+  ],
+  "freshness": {
+    "status": "initializing",
+    "is_fresh": false,
+    "trade_date": "2026-06-15",
+    "candidate_count": 325,
+    "feature_count": 324,
+    "feature_coverage": 0.9969,
+    "settlement_date": null,
+    "expected_settlement_date": "2026-06-12",
+    "settlement_count": 0,
+    "settled_1d_count": 0,
+    "settled_1d_ratio": null,
+    "summary": "初回運用のため、翌営業日以降の成績追跡を待っています。"
+  },
+  "trading_calendar": {
+    "name": "XTKS",
+    "trade_date": "2026-06-15",
+    "is_session": true,
+    "previous_session": "2026-06-12",
+    "next_session": "2026-06-16"
+  },
+  "method": {
+    "universe": "JPX東証普通株とYahoo日本株ランキングの共通銘柄",
+    "comparison_universe": "JPXのプライム普通株を20日平均売買代金で順位付けした上位600銘柄",
+    "price_source": "yfinance",
+    "benchmark": "TOPIX（yfinance: ^TOPX）",
+    "ranking": "モメンタム・トレンド・流動性・量能・リスクの百分位合成",
+    "signal_date": "各銘柄の最新日足が揃った基準日",
+    "execution_assumption": "シグナル日の翌営業日寄付から追跡",
+    "cost_assumption": "既定は片道10bp。0・10・25・50bpシナリオを併記",
+    "portfolio": "翌営業日寄付で等金額建て、5営業日保有、日次コホート方式",
+    "factor_evaluation": "日次横断五分位、Spearman IC、上位分位入替率、業種別集計",
+    "rule_evaluation": "ルール通過群と未通過群の将来リターン差。自動最適化には使用しない"
+  }
+}

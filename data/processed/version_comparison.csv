@@ -1,0 +1,5 @@
+﻿evaluation_version,horizon,sample_count,valid_count,avg_open_buy_return,avg_excess_return,avg_net_return,win_rate,top20_avg_return,cost_bps_one_way
+v4,1d,100,0,,,,,,10
+v4,3d,100,0,,,,,,10
+v4,5d,100,0,,,,,,10
+v4,10d,100,0,,,,,,10
