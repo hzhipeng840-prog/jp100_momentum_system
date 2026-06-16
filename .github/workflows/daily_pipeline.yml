@@ -2,10 +2,9 @@ name: JP100 daily pipeline
 
 on:
   schedule:
-    - cron: "17 19 * * 1-5"
-      timezone: "Asia/Tokyo"
-    - cron: "47 21 * * 1-5"
-      timezone: "Asia/Tokyo"
+    # GitHub Actions cron is UTC. These run at 19:17 and 21:47 JST.
+    - cron: "17 10 * * 1-5"
+    - cron: "47 12 * * 1-5"
   workflow_dispatch:
     inputs:
       force:

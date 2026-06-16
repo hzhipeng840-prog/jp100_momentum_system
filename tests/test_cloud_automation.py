@@ -4,6 +4,7 @@ import json
 import sys
 import unittest
 import uuid
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -18,6 +19,42 @@ from scripts.export_cloud_data import export_cloud_data
 
 
 class CloudJobTest(unittest.TestCase):
+    @patch("cloud_job.previous_tse_session", return_value="2026-06-15")
+    @patch("cloud_job.is_tse_session", return_value=True)
+    def test_target_date_before_data_ready_uses_previous_session(
+        self,
+        _mock_session,
+        mock_previous_session,
+    ) -> None:
+        now = datetime(2026, 6, 16, 2, 46, tzinfo=cloud_job.JST)
+
+        self.assertEqual(cloud_job.resolve_target_date(now), "2026-06-15")
+        mock_previous_session.assert_called_once_with("2026-06-16")
+
+    @patch("cloud_job.previous_tse_session", return_value="2026-06-15")
+    @patch("cloud_job.is_tse_session", return_value=True)
+    def test_target_date_after_data_ready_uses_current_session(
+        self,
+        _mock_session,
+        mock_previous_session,
+    ) -> None:
+        now = datetime(2026, 6, 16, 18, 30, tzinfo=cloud_job.JST)
+
+        self.assertEqual(cloud_job.resolve_target_date(now), "2026-06-16")
+        mock_previous_session.assert_not_called()
+
+    @patch("cloud_job.previous_tse_session", return_value="2026-06-12")
+    @patch("cloud_job.is_tse_session", return_value=False)
+    def test_target_date_market_closed_uses_previous_session(
+        self,
+        _mock_session,
+        mock_previous_session,
+    ) -> None:
+        now = datetime(2026, 6, 13, 18, 30, tzinfo=cloud_job.JST)
+
+        self.assertEqual(cloud_job.resolve_target_date(now), "2026-06-12")
+        mock_previous_session.assert_called_once_with("2026-06-13")
+
     @patch("cloud_job.is_tse_session", return_value=False)
     def test_market_holiday_is_skipped(self, _mock_session) -> None:
         root = Path.cwd() / ".test-tmp" / uuid.uuid4().hex

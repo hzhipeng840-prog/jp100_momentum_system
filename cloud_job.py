@@ -14,11 +14,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from jp100.config import PipelineConfig  # noqa: E402
 from jp100.pipeline import run_pipeline  # noqa: E402
 from jp100.storage import save_metadata, timestamp_now  # noqa: E402
-from jp100.trading_calendar import is_tse_session  # noqa: E402
+from jp100.trading_calendar import is_tse_session, previous_tse_session  # noqa: E402
 from jp100.version import current_version  # noqa: E402
 
 
 JST = ZoneInfo("Asia/Tokyo")
+MARKET_DATA_READY_HOUR_JST = 18
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +69,14 @@ def should_skip_completed(
 def write_status(path: Path | None, status: dict[str, object]) -> None:
     if path is not None:
         save_metadata(status, path)
+
+
+def resolve_target_date(now: datetime | None = None) -> str:
+    current = now or datetime.now(JST)
+    date_text = current.date().isoformat()
+    if is_tse_session(date_text) and current.hour >= MARKET_DATA_READY_HOUR_JST:
+        return date_text
+    return previous_tse_session(date_text)
 
 
 def execute_cloud_job(
@@ -166,7 +175,7 @@ def execute_cloud_job(
 
 def main() -> int:
     args = parse_args()
-    target_date = datetime.now(JST).date().isoformat()
+    target_date = resolve_target_date()
     return execute_cloud_job(
         target_date=target_date,
         yahoo_pages=args.yahoo_pages,
