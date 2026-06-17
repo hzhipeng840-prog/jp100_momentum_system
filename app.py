@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import math
 import sys
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -15,6 +17,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from jp100.config import PROCESSED_DIR, PipelineConfig  # noqa: E402
 from jp100.pipeline import run_pipeline  # noqa: E402
 from jp100.storage import resolve_latest_output  # noqa: E402
+from jp100.trading_calendar import is_tse_session, previous_tse_session  # noqa: E402
+from jp100.version import current_version  # noqa: E402
 from jp100.watchlist import (  # noqa: E402
     add_watchlist_entry,
     enrich_watchlist,
@@ -22,6 +26,10 @@ from jp100.watchlist import (  # noqa: E402
     remove_watchlist_entries,
     save_watchlist,
 )
+
+
+JST = ZoneInfo("Asia/Tokyo")
+MARKET_DATA_READY_HOUR_JST = 18
 
 
 st.set_page_config(
@@ -177,6 +185,39 @@ def yen(value: object) -> str:
         return "―"
 
 
+def expected_update_trade_date(now: datetime | None = None) -> str | None:
+    current = now or datetime.now(JST)
+    date_text = current.date().isoformat()
+    try:
+        if is_tse_session(date_text) and current.hour >= MARKET_DATA_READY_HOUR_JST:
+            return date_text
+        return previous_tse_session(date_text)
+    except Exception:
+        return None
+
+
+def latest_update_is_completed(
+    metadata: dict[str, object],
+    *,
+    yahoo_pages: int,
+    daily_count: int,
+) -> bool:
+    target_date = expected_update_trade_date()
+    if not target_date:
+        return False
+    yahoo = metadata.get("yahoo")
+    freshness = metadata.get("freshness")
+    yahoo_pages_value = yahoo.get("pages") if isinstance(yahoo, dict) else None
+    is_fresh = freshness.get("is_fresh") if isinstance(freshness, dict) else False
+    return (
+        metadata.get("trade_date") == target_date
+        and metadata.get("app_version") == current_version()
+        and yahoo_pages_value == yahoo_pages
+        and metadata.get("daily_pick_count") == daily_count
+        and bool(is_fresh)
+    )
+
+
 def csv_bytes(frame: pd.DataFrame) -> bytes:
     return frame.to_csv(index=False).encode("utf-8-sig")
 
@@ -241,8 +282,13 @@ with st.sidebar:
         help="値上がり率・出来高・出来高増加率から、それぞれ最大50件×ページ数を取得します。",
     )
     daily_count = st.slider("毎日厳選の銘柄数", 3, 5, 5)
+    force_refresh = st.checkbox(
+        "完了済みでも再取得する",
+        value=False,
+        help="同じ基準日・同じシステム版の更新が完了済みでも、外部データを再取得します。",
+    )
     refresh = st.button("最新データを取得", type="primary", width="stretch")
-    st.caption("取得には数分かかる場合があります。")
+    st.caption("未更新時だけ外部データを取得します。強制再取得には数分かかる場合があります。")
     st.divider()
     st.markdown("### データソース")
     st.markdown("JPX 東証上場銘柄一覧")
@@ -251,16 +297,27 @@ with st.sidebar:
 
 if refresh:
     try:
-        with st.spinner("JPX・Yahoo・yfinanceから最新データを取得しています…"):
-            run_pipeline(
-                PipelineConfig(
-                    yahoo_pages=yahoo_pages,
-                    daily_count=daily_count,
-                )
+        _, existing_metadata = load_outputs()
+        if (
+            not force_refresh
+            and latest_update_is_completed(
+                existing_metadata,
+                yahoo_pages=yahoo_pages,
+                daily_count=daily_count,
             )
-        load_outputs.clear()
-        st.success("最新データに更新しました。")
-        st.rerun()
+        ):
+            st.info("同じ基準日・同じシステム版の更新が完了済みのため、再取得を省略しました。")
+        else:
+            with st.spinner("JPX・Yahoo・yfinanceから最新データを取得しています…"):
+                run_pipeline(
+                    PipelineConfig(
+                        yahoo_pages=yahoo_pages,
+                        daily_count=daily_count,
+                    )
+                )
+            load_outputs.clear()
+            st.success("最新データに更新しました。")
+            st.rerun()
     except Exception as exc:
         st.error(f"更新に失敗しました: {exc}")
 
