@@ -110,6 +110,67 @@ class CloudJobTest(unittest.TestCase):
         self.assertEqual(status["trade_date"], "2026-06-15")
         self.assertEqual(status["run_id"], "test-run")
 
+    @patch("cloud_job.run_pipeline")
+    @patch("cloud_job.PipelineConfig")
+    @patch("cloud_job.is_tse_session", return_value=True)
+    def test_price_data_not_ready_is_skipped(
+        self,
+        _mock_session,
+        mock_config,
+        mock_pipeline,
+    ) -> None:
+        root = Path.cwd() / ".test-tmp" / uuid.uuid4().hex
+        mock_config.return_value = SimpleNamespace(processed_dir=root / "processed")
+        mock_pipeline.side_effect = cloud_job.PriceDataDateMismatchError(
+            "2026-06-16",
+            "2026-06-15",
+        )
+        status_path = root / "status.json"
+
+        exit_code = cloud_job.execute_cloud_job(
+            target_date="2026-06-16",
+            yahoo_pages=3,
+            daily_count=5,
+            force=False,
+            status_path=status_path,
+        )
+
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(status["status"], "skipped")
+        self.assertEqual(status["reason"], "price_not_ready")
+        self.assertEqual(status["trade_date"], "2026-06-15")
+
+    @patch("cloud_job.run_pipeline")
+    @patch("cloud_job.PipelineConfig")
+    @patch("cloud_job.is_tse_session", return_value=True)
+    def test_unexpected_price_date_mismatch_fails(
+        self,
+        _mock_session,
+        mock_config,
+        mock_pipeline,
+    ) -> None:
+        root = Path.cwd() / ".test-tmp" / uuid.uuid4().hex
+        mock_config.return_value = SimpleNamespace(processed_dir=root / "processed")
+        mock_pipeline.side_effect = cloud_job.PriceDataDateMismatchError(
+            "2026-06-15",
+            "2026-06-16",
+        )
+        status_path = root / "status.json"
+
+        exit_code = cloud_job.execute_cloud_job(
+            target_date="2026-06-15",
+            yahoo_pages=3,
+            daily_count=5,
+            force=False,
+            status_path=status_path,
+        )
+
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(status["status"], "failed")
+        self.assertEqual(status["reason"], "price_date_mismatch")
+
     def test_same_date_and_version_is_skipped_unless_forced(self) -> None:
         metadata = {"trade_date": "2026-06-15", "app_version": "v4"}
         self.assertTrue(

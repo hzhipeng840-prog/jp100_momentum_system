@@ -5,6 +5,8 @@ on:
     # GitHub Actions cron is UTC. These run at 19:17 and 21:47 JST.
     - cron: "17 10 * * 1-5"
     - cron: "47 12 * * 1-5"
+    # A next-morning retry for delayed yfinance updates. This is 08:17 JST Tue-Sat.
+    - cron: "17 23 * * 1-5"
   workflow_dispatch:
     inputs:
       force:

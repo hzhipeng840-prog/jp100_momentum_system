@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -158,14 +159,20 @@ def load_outputs() -> tuple[dict[str, pd.DataFrame], dict]:
 
 def pct(value: object) -> str:
     try:
-        return f"{float(value):+.1%}"
+        number = float(value)
+        if not math.isfinite(number):
+            return "―"
+        return f"{number:+.1%}"
     except (TypeError, ValueError):
         return "―"
 
 
 def yen(value: object) -> str:
     try:
-        return f"¥{float(value):,.0f}"
+        number = float(value)
+        if not math.isfinite(number):
+            return "―"
+        return f"¥{number:,.0f}"
     except (TypeError, ValueError):
         return "―"
 

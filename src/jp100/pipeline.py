@@ -58,6 +58,16 @@ class PipelineResult:
     metadata: dict[str, object]
 
 
+class PriceDataDateMismatchError(RuntimeError):
+    def __init__(self, expected_date: str, actual_date: str) -> None:
+        self.expected_date = expected_date
+        self.actual_date = actual_date
+        super().__init__(
+            "株価データの基準日が実行対象日と一致しません。"
+            f" 期待日: {expected_date} / 取得日: {actual_date}"
+        )
+
+
 def run_pipeline(config: PipelineConfig | None = None) -> PipelineResult:
     config = config or PipelineConfig()
     config.raw_dir.mkdir(parents=True, exist_ok=True)
@@ -125,10 +135,7 @@ def run_pipeline(config: PipelineConfig | None = None) -> PipelineResult:
 
     trade_date = str(features["trade_date"].dropna().astype(str).max())
     if config.expected_trade_date and trade_date != config.expected_trade_date:
-        raise RuntimeError(
-            "株価データの基準日が実行対象日と一致しません。"
-            f" 期待日: {config.expected_trade_date} / 取得日: {trade_date}"
-        )
+        raise PriceDataDateMismatchError(config.expected_trade_date, trade_date)
     features = features[features["trade_date"].astype(str).eq(trade_date)].copy()
     jpx_tickers = set(jpx["ticker"].dropna().astype(str))
     jpx_features = all_features[

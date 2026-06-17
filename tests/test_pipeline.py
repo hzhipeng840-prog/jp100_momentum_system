@@ -99,7 +99,7 @@ class PipelineIntegrationTest(unittest.TestCase):
         result = run_pipeline(config)
 
         self.assertEqual(result.metadata["trade_date"], "2026-06-11")
-        self.assertEqual(result.metadata["app_version"], "v4")
+        self.assertEqual(result.metadata["app_version"], "v5")
         self.assertEqual(len(result.candidates), 3)
         self.assertEqual(len(result.top100), 3)
         self.assertEqual(len(result.daily_picks), 3)

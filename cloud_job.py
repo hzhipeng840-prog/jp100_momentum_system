@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from jp100.config import PipelineConfig  # noqa: E402
-from jp100.pipeline import run_pipeline  # noqa: E402
+from jp100.pipeline import PriceDataDateMismatchError, run_pipeline  # noqa: E402
 from jp100.storage import save_metadata, timestamp_now  # noqa: E402
 from jp100.trading_calendar import is_tse_session, previous_tse_session  # noqa: E402
 from jp100.version import current_version  # noqa: E402
@@ -69,6 +69,13 @@ def should_skip_completed(
 def write_status(path: Path | None, status: dict[str, object]) -> None:
     if path is not None:
         save_metadata(status, path)
+
+
+def price_data_is_not_ready(expected_date: str, actual_date: str) -> bool:
+    try:
+        return date.fromisoformat(actual_date) < date.fromisoformat(expected_date)
+    except ValueError:
+        return False
 
 
 def resolve_target_date(now: datetime | None = None) -> str:
@@ -143,6 +150,31 @@ def execute_cloud_job(
 
     try:
         result = run_pipeline(config)
+    except PriceDataDateMismatchError as exc:
+        if price_data_is_not_ready(exc.expected_date, exc.actual_date):
+            status = {
+                **base_status,
+                "status": "skipped",
+                "reason": "price_not_ready",
+                "message": (
+                    "yfinanceの価格データが実行対象日まで更新されていないため、"
+                    "公開をスキップしました。"
+                    f"期待日: {exc.expected_date} / 取得日: {exc.actual_date}"
+                ),
+                "trade_date": exc.actual_date,
+            }
+            write_status(status_path, status)
+            print(status["message"])
+            return 0
+        status = {
+            **base_status,
+            "status": "failed",
+            "reason": "price_date_mismatch",
+            "message": f"株価データの基準日確認に失敗しました: {exc}",
+        }
+        write_status(status_path, status)
+        print(status["message"], file=sys.stderr)
+        return 1
     except Exception as exc:
         status = {
             **base_status,
