@@ -1,9 +1,0 @@
-﻿evaluation_version,universe_source,universe_label,horizon,sample_count,valid_count,avg_open_buy_return,median_open_buy_return,win_rate,avg_excess_return,avg_net_return,cost_bps_one_way
-v4,jpx_liquidity,JPX流動性,1d,100,0,,,,,,10
-v4,jpx_liquidity,JPX流動性,3d,100,0,,,,,,10
-v4,jpx_liquidity,JPX流動性,5d,100,0,,,,,,10
-v4,jpx_liquidity,JPX流動性,10d,100,0,,,,,,10
-v4,yahoo,Yahooランキング,1d,100,0,,,,,,10
-v4,yahoo,Yahooランキング,3d,100,0,,,,,,10
-v4,yahoo,Yahooランキング,5d,100,0,,,,,,10
-v4,yahoo,Yahooランキング,10d,100,0,,,,,,10
