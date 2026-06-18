@@ -35,6 +35,14 @@ def market_history(offset: float) -> pd.DataFrame:
     )
 
 
+def add_later_price_row(frame: pd.DataFrame) -> pd.DataFrame:
+    later = frame.tail(1).copy()
+    later.index = pd.DatetimeIndex(["2026-06-12"])
+    later["Close"] = later["Close"] * 1.01
+    later["Adj Close"] = later["Adj Close"] * 1.01
+    return pd.concat([frame, later])
+
+
 class PipelineIntegrationTest(unittest.TestCase):
     @patch("jp100.pipeline.load_yahoo_candidates")
     @patch("jp100.pipeline.load_jpx_list")
@@ -99,7 +107,7 @@ class PipelineIntegrationTest(unittest.TestCase):
         result = run_pipeline(config)
 
         self.assertEqual(result.metadata["trade_date"], "2026-06-11")
-        self.assertEqual(result.metadata["app_version"], "v6")
+        self.assertEqual(result.metadata["app_version"], "v7")
         self.assertEqual(len(result.candidates), 3)
         self.assertEqual(len(result.top100), 3)
         self.assertEqual(len(result.daily_picks), 3)
@@ -123,6 +131,71 @@ class PipelineIntegrationTest(unittest.TestCase):
         self.assertTrue(
             (config.history_dir / "evaluation_observations.csv").exists()
         )
+
+    @patch("jp100.pipeline.load_yahoo_candidates")
+    @patch("jp100.pipeline.load_jpx_list")
+    @patch("jp100.pipeline.download_price_history")
+    def test_expected_trade_date_ignores_later_price_rows(
+        self,
+        mock_download,
+        mock_load_jpx,
+        mock_load_yahoo,
+    ) -> None:
+        root = Path.cwd() / ".test-tmp" / uuid.uuid4().hex
+        codes = ["7203", "6758", "9984"]
+        jpx = pd.DataFrame(
+            [
+                {
+                    "code": code,
+                    "name": f"銘柄{index}",
+                    "market": "プライム",
+                    "industry": f"業種{index}",
+                    "ticker": f"{code}.T",
+                }
+                for index, code in enumerate(codes, start=1)
+            ]
+        )
+        yahoo = pd.DataFrame(
+            [
+                {
+                    "code": code,
+                    "yahoo_name": f"銘柄{index}",
+                    "best_yahoo_rank": index,
+                    "ranking_hits": 2,
+                    "ranking_sources": "出来高・値上がり率",
+                }
+                for index, code in enumerate(codes, start=1)
+            ]
+        )
+        mock_load_jpx.return_value = (jpx, {"source": "unit-test", "count": 3})
+        mock_load_yahoo.return_value = (
+            yahoo,
+            {"source": "unit-test", "count": 3},
+        )
+        mock_download.return_value = (
+            {
+                "7203.T": add_later_price_row(market_history(30)),
+                "6758.T": add_later_price_row(market_history(20)),
+                "9984.T": add_later_price_row(market_history(10)),
+            },
+            [],
+        )
+        config = PipelineConfig(
+            yahoo_pages=1,
+            top_count=3,
+            daily_count=3,
+            min_feature_coverage=1.0,
+            expected_trade_date="2026-06-11",
+            raw_dir=root / "raw",
+            processed_dir=root / "processed",
+            history_dir=root / "history",
+            snapshot_dir=root / "snapshots",
+        )
+
+        result = run_pipeline(config)
+
+        self.assertEqual(result.metadata["trade_date"], "2026-06-11")
+        self.assertTrue(result.top100["trade_date"].eq("2026-06-11").all())
 
 
 if __name__ == "__main__":

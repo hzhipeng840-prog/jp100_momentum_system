@@ -68,6 +68,25 @@ class PriceDataDateMismatchError(RuntimeError):
         )
 
 
+def _limit_history_to_expected_date(
+    history: dict[str, pd.DataFrame],
+    expected_trade_date: str | None,
+) -> dict[str, pd.DataFrame]:
+    if expected_trade_date is None:
+        return history
+    cutoff = pd.Timestamp(expected_trade_date)
+    limited: dict[str, pd.DataFrame] = {}
+    for ticker, frame in history.items():
+        if frame.empty:
+            limited[ticker] = frame
+            continue
+        index = pd.to_datetime(frame.index, errors="coerce")
+        filtered = frame.loc[index <= cutoff].copy()
+        if not filtered.empty:
+            limited[ticker] = filtered
+    return limited
+
+
 def run_pipeline(config: PipelineConfig | None = None) -> PipelineResult:
     config = config or PipelineConfig()
     config.raw_dir.mkdir(parents=True, exist_ok=True)
@@ -118,6 +137,7 @@ def run_pipeline(config: PipelineConfig | None = None) -> PipelineResult:
         incremental_period=config.incremental_history_period,
     )
     history, download_errors = price_result
+    history = _limit_history_to_expected_date(history, config.expected_trade_date)
     price_cache_stats = getattr(price_result, "stats", {})
     all_features, skipped = build_feature_table(history)
     if all_features.empty or "ticker" not in all_features:
