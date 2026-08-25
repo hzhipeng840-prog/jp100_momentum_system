@@ -1,8 +1,8 @@
 {
-  "run_id": "20260824T195856267464",
-  "trade_date": "2026-08-24",
-  "generated_at": "2026-08-24T19:58:56+09:00",
-  "run_dir": "snapshots/2026-08-24/20260824T195856267464",
+  "run_id": "20260825T195457251592",
+  "trade_date": "2026-08-25",
+  "generated_at": "2026-08-25T19:54:57+09:00",
+  "run_dir": "snapshots/2026-08-25/20260825T195457251592",
   "run_dir_base": "data",
   "files": [
     "backtest_summary.csv",
