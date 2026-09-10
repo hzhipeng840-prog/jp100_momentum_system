@@ -1,2 +1,2 @@
 ﻿trade_date,benchmark_ticker,market_regime,risk_points,recommended_action,benchmark_return_20d,benchmark_above_ma20,benchmark_above_ma60,benchmark_volatility_20d,breadth_positive_20d,breadth_above_ma60,average_pick_volatility,average_pick_correlation,industry_concentration,liquidity_universe_count,daily_pick_count
-2026-09-09,^TOPX,積極,1,通常の候補比較が可能です。個別銘柄の過熱度を確認してください。,,,,,0.36,0.47833333333333333,0.3507439001131028,0.2715149797412957,0.2,600,5
+2026-09-10,^TOPX,積極,1,通常の候補比較が可能です。個別銘柄の過熱度を確認してください。,,,,,0.3283333333333333,0.4716666666666667,0.4493450632125967,0.12959793894180843,0.2,600,5
