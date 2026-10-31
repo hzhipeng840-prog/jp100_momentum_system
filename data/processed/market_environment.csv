@@ -1,2 +1,2 @@
 ﻿trade_date,benchmark_ticker,market_regime,risk_points,recommended_action,benchmark_return_20d,benchmark_above_ma20,benchmark_above_ma60,benchmark_volatility_20d,breadth_positive_20d,breadth_above_ma60,average_pick_volatility,average_pick_correlation,industry_concentration,liquidity_universe_count,daily_pick_count
-2026-10-29,^TOPX,中立,2,銘柄数と投入比率を抑え、流動性と分散を優先してください。,,,,,0.405,0.33666666666666667,0.2813625484838207,0.14877033868176567,0.2,600,5
+2026-10-30,^TOPX,中立,2,銘柄数と投入比率を抑え、流動性と分散を優先してください。,,,,,0.4116666666666667,0.35833333333333334,0.3583913265426787,0.4359460893044691,0.2,600,5
